@@ -144,12 +144,22 @@ class KnownValues(unittest.TestCase):
         _, hop, _ = newton_ah.gen_g_hop_rohf(mf, coeff, occ)
         x = rng.normal(size=numpy.count_nonzero(scf.hf.uniq_var_indices(occ)))
         x /= numpy.linalg.norm(x)
-        kappa = scf.hf.unpack_uniq_var(x, occ)
-        eps = 1e-5
-        cp = coeff.dot(scipy.linalg.expm(eps * kappa))
-        cm = coeff.dot(scipy.linalg.expm(-eps * kappa))
-        fd = (mf.get_grad(cp, occ) - mf.get_grad(cm, occ)) / (2 * eps)
-        self.assertAlmostEqual(numpy.linalg.norm(fd - hop(x)), 0.0, 5)
+        y = rng.normal(size=x.size)
+        y /= numpy.linalg.norm(y)
+        kx = scf.hf.unpack_uniq_var(x, occ)
+        ky = scf.hf.unpack_uniq_var(y, occ)
+
+        def energy(s, t):
+            c = coeff.dot(scipy.linalg.expm(s * kx + t * ky))
+            return mf.energy_tot(dm=mf.make_rdm1(c, occ))
+
+        eps = 1e-4
+        fd = (energy(eps, eps) - energy(eps, -eps)
+              - energy(-eps, eps) + energy(-eps, -eps)) / (4 * eps**2)
+        hx, hy = hop(x), hop(y)
+        self.assertAlmostEqual(x.dot(hy), y.dot(hx), 10)
+        # PySCF's orbital gradient and Hessian are half the energy derivatives.
+        self.assertAlmostEqual(fd / 2, x.dot(hy), 5)
 
 
     def test_nr_uhf(self):

@@ -155,12 +155,14 @@ def gen_g_hop_rohf(mf, mo_coeff, mo_occ, fock_ao=None, h1e=None):
     orbvb = [mo_coeff[k][:,viridxb[k]] for k in range(nkpts)]
 
     g = []
+    gmat = []
     h_diag = []
     for k in range(nkpts):
         g1 = numpy.zeros_like(focka[k])
         g1[uniq_var_a[k]] = focka[k][uniq_var_a[k]]
         g1[uniq_var_b[k]] += fockb[k][uniq_var_b[k]]
         g.append(g1[uniq_ab[k]])
+        gmat.append(g1-g1.conj().T)
         ea = focka[k].diagonal().real
         eb = fockb[k].diagonal().real
         h1 = numpy.zeros_like(focka[k].real)
@@ -200,6 +202,8 @@ def gen_g_hop_rohf(mf, mo_coeff, mo_occ, fock_ao=None, h1e=None):
             h1 = numpy.zeros_like(hmat_a)
             h1[uniq_var_a[k]] = hmat_a[uniq_var_a[k]]
             h1[uniq_var_b[k]] += hmat_b[uniq_var_b[k]]
+            # Transport the moving-frame gradient back to the reference frame.
+            h1 += .5 * (kappa[k].dot(gmat[k]) - gmat[k].dot(kappa[k]))
             hx.append(h1[uniq_ab[k]])
         return numpy.hstack(hx)
 

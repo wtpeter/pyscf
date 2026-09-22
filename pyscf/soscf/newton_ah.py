@@ -161,6 +161,7 @@ def gen_g_hop_rohf(mf, mo_coeff, mo_occ, fock_ao=None, h1e=None,
         g[sym_forbid] = 0
         h_diag[sym_forbid] = 0
 
+    gmat = hf.unpack_uniq_var(g, mo_occ)
     vind = mf.gen_response((mo_coeff,)*2, (mo_occa, mo_occb),
                            hermi=1, with_nlc=False)
 
@@ -186,6 +187,8 @@ def gen_g_hop_rohf(mf, mo_coeff, mo_occ, fock_ao=None, h1e=None,
         hx = numpy.zeros_like(hmat_a)
         hx[uniq_var_a] = hmat_a[uniq_var_a]
         hx[uniq_var_b] += hmat_b[uniq_var_b]
+        # Transport the moving-frame gradient back to the reference frame.
+        hx += .5 * (kappa.dot(gmat) - gmat.dot(kappa))
         hx = hx[uniq_ab]
         if with_symmetry and mol.symmetry:
             hx[sym_forbid] = 0

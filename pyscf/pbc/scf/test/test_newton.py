@@ -158,17 +158,28 @@ class KnowValues(unittest.TestCase):
         g, hop, _ = newton_ah.gen_g_hop_rohf(mf, coeff, occ, fock)
         x = rng.normal(size=g.size) + 1j*rng.normal(size=g.size)
         x /= numpy.linalg.norm(x)
-        eps = 1e-5
-        cp, cm = [], []
+        y = rng.normal(size=g.size) + 1j*rng.normal(size=g.size)
+        y /= numpy.linalg.norm(y)
+        kx, ky = [], []
         p0 = 0
-        for c, o in zip(coeff, occ):
+        for o in occ:
             p1 = p0 + numpy.count_nonzero(hf.uniq_var_indices(o))
-            kappa = hf.unpack_uniq_var(x[p0:p1], o)
-            cp.append(c.dot(scipy.linalg.expm(eps * kappa)))
-            cm.append(c.dot(scipy.linalg.expm(-eps * kappa)))
+            kx.append(hf.unpack_uniq_var(x[p0:p1], o))
+            ky.append(hf.unpack_uniq_var(y[p0:p1], o))
             p0 = p1
-        fd = (mf.get_grad(cp, occ) - mf.get_grad(cm, occ)) / (2 * eps)
-        self.assertAlmostEqual(numpy.linalg.norm(fd - hop(x)), 0., 6)
+
+        def energy(s, t):
+            c = [coeff[k].dot(scipy.linalg.expm(s * kx[k] + t * ky[k]))
+                 for k in range(len(kpts))]
+            return mf.energy_tot(dm=mf.make_rdm1(c, occ))
+
+        eps = 1e-4
+        fd = (energy(eps, eps) - energy(eps, -eps)
+              - energy(-eps, eps) + energy(-eps, -eps)) / (4 * eps**2)
+        hx, hy = hop(x), hop(y)
+        self.assertAlmostEqual(numpy.vdot(x, hy).real, numpy.vdot(y, hx).real, 10)
+        # The energy is averaged over k-points; g and h_op are not.
+        self.assertAlmostEqual(fd * len(kpts) / 2, numpy.vdot(x, hy).real, 5)
 
     def test_nr_krks_lda(self):
         mf = dft.KRKS(cell, cell.make_kpts([2,1,1]))
